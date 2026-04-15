@@ -9,7 +9,7 @@ spec:
       - name: "cluster1"
         layout:
           shardsCount: 1
-          replicasCount: 1
+          replicasCount: 2
     users:
       default/password: "ClickHouse123!"
       default/networks/ip:
