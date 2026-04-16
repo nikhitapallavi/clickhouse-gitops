@@ -1,0 +1,62 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: goose-migrator
+  namespace: db-migrations
+spec:
+  schedule: "*/15 * * * *"
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      template:
+        spec:
+          restartPolicy: OnFailure
+
+          initContainers:
+            - name: wait-for-clickhouse
+              image: busybox:1.35
+              command:
+                - sh
+                - -c
+                - |
+                  echo "Waiting for ClickHouse..."
+                  until nc -z ${CLICKHOUSE_HOST} ${CLICKHOUSE_PORT}; do
+                    sleep 3
+                  done
+              envFrom:
+                - secretRef:
+                    name: clickhouse-credentials
+
+          containers:
+            - name: goose
+              image: alpine:3.19
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  echo "Installing goose..."
+                  apk add --no-cache curl bash
+
+                  curl -L https://github.com/pressly/goose/releases/download/v3.16.0/goose_linux_x86_64 -o /usr/local/bin/goose
+                  chmod +x /usr/local/bin/goose
+
+                  echo "Running migrations..."
+                  goose -dir /migrations clickhouse "tcp://${CLICKHOUSE_HOST}:${CLICKHOUSE_PORT}?username=default&password=clickhouse123&database=default" up
+
+              envFrom:
+                - secretRef:
+                    name: clickhouse-credentials
+
+              volumeMounts:
+                - name: sql-migrations
+                  mountPath: /migrations
+                - name: runner-script
+                  mountPath: /scripts
+
+          volumes:
+            - name: sql-migrations
+              configMap:
+                name: clickhouse-migrations
+            - name: runner-script
+              configMap:
+                name: migration-script
