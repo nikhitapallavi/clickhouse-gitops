@@ -1,0 +1,68 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: goose-migrator
+  namespace: db-migrations
+  labels:
+    app: goose-migrator
+spec:
+  schedule: "*/15 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 5
+  failedJobsHistoryLimit: 3
+  startingDeadlineSeconds: 60
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 300
+      template:
+        metadata:
+          labels:
+            app: goose-migrator
+        spec:
+          restartPolicy: OnFailure
+          initContainers:
+          - name: wait-for-clickhouse
+            image: busybox:1.35
+            command:
+            - sh
+            - -c
+            - |
+              echo "Waiting for ClickHouse at ${CLICKHOUSE_HOST}:${CLICKHOUSE_PORT}..."
+              until nc -z ${CLICKHOUSE_HOST} ${CLICKHOUSE_PORT}; do
+                echo "Not ready yet, retrying in 3s..."
+                sleep 3
+              done
+              echo "ClickHouse is reachable. Proceeding."
+            envFrom:
+            - secretRef:
+                name: clickhouse-credentials
+          containers:
+          - name: goose
+            image: ghcr.io/pressly/goose:latest
+            command: ["/bin/sh", "/scripts/run-migrations.sh"]
+            envFrom:
+            - secretRef:
+                name: clickhouse-credentials
+            volumeMounts:
+            - name: sql-migrations
+              mountPath: /migrations
+              readOnly: true
+            - name: runner-script
+              mountPath: /scripts
+              readOnly: true
+            resources:
+              requests:
+                cpu: 50m
+                memory: 64Mi
+              limits:
+                cpu: 200m
+                memory: 128Mi
+          volumes:
+          - name: sql-migrations
+            configMap:
+              name: clickhouse-migrations
+          - name: runner-script
+            configMap:
+              name: migration-script
+              defaultMode: 0755

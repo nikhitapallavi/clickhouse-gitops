@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: migration-script
+  namespace: db-migrations
+data:
+  run-migrations.sh: |
+    #!/bin/sh
+    set -e
+    echo "========================================="
+    echo " Goose Migration Runner - $(date -u)"
+    echo "========================================="
+    DSN="clickhouse://${CLICKHOUSE_USER}:${CLICKHOUSE_PASSWORD}@${CLICKHOUSE_HOST}:${CLICKHOUSE_PORT}/${CLICKHOUSE_DATABASE}?x-multi-statement=true"
+    echo "[INFO] Checking current status..."
+    goose -dir /migrations clickhouse "${DSN}" status || true
+    echo "[INFO] Running all pending migrations..."
+    goose -dir /migrations clickhouse "${DSN}" up
+    echo "[INFO] Final status:"
+    goose -dir /migrations clickhouse "${DSN}" status
+    echo "[DONE] Migration run complete at $(date -u)"

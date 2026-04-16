@@ -1,0 +1,21 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: db-migrations
+
+resources:
+  - namespace.yaml
+  - secret.yaml
+  - configmap-script.yaml
+  - cronjob.yaml
+  - serviceaccount.yaml
+
+configMapGenerator:
+  - name: clickhouse-migrations
+    files:
+      - migrations/00001_create_database.sql
+      - migrations/00002_create_events_table.sql
+      - migrations/00003_add_session_column.sql
+
+generatorOptions:
+  disableNameSuffixHash: true
