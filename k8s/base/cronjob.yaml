@@ -39,7 +39,7 @@ spec:
                 name: clickhouse-credentials
           containers:
           - name: goose
-            image: ghcr.io/pressly/goose:latest
+            image: ghcr.io/pressly/goose:v3.16.0
             command: ["/bin/sh", "/scripts/run-migrations.sh"]
             envFrom:
             - secretRef:
